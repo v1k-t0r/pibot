@@ -1,5 +1,6 @@
 import logging
 import sane
+import systemd.daemon
 from datetime import datetime
 from functools import wraps
 from pypass import PasswordStore as PStore
@@ -68,5 +69,5 @@ if __name__ == '__main__':
 
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
     application.add_handler(unknown_handler)
-    
+    systemd.daemon.notify('READY=1')
     application.run_polling()
