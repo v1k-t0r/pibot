@@ -1,4 +1,5 @@
 import logging
+import os
 import pyudev
 import sane
 import systemd.daemon
@@ -8,6 +9,7 @@ from pypass import PasswordStore as PStore
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ChatAction
 from telegram.ext import filters, ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler
+from pdf2docx import Converter
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -111,6 +113,23 @@ async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.delete_message(chat_id=chat_id, message_id=scan_msg.message_id)
 
 
+@restricted
+async def pdf_to_docx(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    new_file = await update.message.effective_attachment.get_file()
+    pdf_file = update.message.document.file_name
+    await new_file.download_to_drive(pdf_file)
+    docx_file = pdf_file.replace('.pdf', '.docx')
+    cv_msg = await update.message.reply_text(text=f"Converting...", reply_to_message_id=update.message.id)
+    cv = Converter(pdf_file)
+    cv.convert(docx_file)
+    cv.close()
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.UPLOAD_DOCUMENT)
+    await update.message.reply_document(document=docx_file, reply_to_message_id=update.message.id)
+    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=cv_msg.message_id)
+    os.remove(pdf_file)
+    os.remove(docx_file)
+
+
 if __name__ == '__main__':
     application = ApplicationBuilder().token(token).build()
 
@@ -118,6 +137,7 @@ if __name__ == '__main__':
     application.add_handler(start_handler)
 
     application.add_handler(CallbackQueryHandler(scan, block=True))
+    application.add_handler(MessageHandler(filters.Document.MimeType('application/pdf'), pdf_to_docx))
 
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
     application.add_handler(unknown_handler)
